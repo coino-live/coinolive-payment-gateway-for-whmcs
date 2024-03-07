@@ -1,0 +1,20 @@
+{
+  "schema": "1.0",
+  "type": "whmcs-gateways",
+  "name": "coinolive",
+  "license": "proprietary",
+  "category": "payments",
+  "description": {
+    "name": "CoinoLive",
+    "tagline": "A third party payment gateway."
+  },
+  "logo": {
+    "filename": "logo.png"
+  },
+  "authors": [
+    {
+      "name": "WHMCS",
+      "homepage": "https:\/\/coino.live\/"
+    }
+  ]
+}
