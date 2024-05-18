@@ -28,10 +28,10 @@ function coinolive_config()
             'Description' => 'Enter your API key here',
         ),
         'ipnSecret' => array(
-            'FriendlyName' => 'Secret',
+            'FriendlyName' => 'Gate ID',
             'Type' => 'text',
             'Default' => '',
-            'Description' => 'Enter your Secret here',
+            'Description' => 'Enter your Gate ID here',
         )
     );
 }
