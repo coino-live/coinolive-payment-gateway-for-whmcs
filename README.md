@@ -1,66 +1,68 @@
-# Coino Live Crypto Payments WHMCS Plugin
+# Coino Live crypto payments for WHMCS
 
-Welcome to the Coino Live WHMCS Plugin repository!
+Clients pay invoices with USDT, Bitcoin, Ethereum, TRON, TON, Solana and more on
+the Coino Live payment page. The invoice is marked paid once the payment is
+confirmed on chain, and the payment is credited to your Coino Live balance.
 
-Coino Live is a leading crypto payment gateway that allows businesses to accept various cryptocurrencies securely and seamlessly. This WHMCS plugin enables easy integration of Coino Live's payment gateway into your WHMCS billing system, allowing you to accept cryptocurrency payments from your customers.
+**Version 1.0.0** · requires WHMCS 8.0+, PHP 7.4+
 
-## Why Choose Us?
+- Download the ready-to-install zip: [coinolive-whmcs-1.0.0.zip](https://coino.live/downloads/coinolive-whmcs-1.0.0.zip) · [WHMCS plugin page](https://coino.live/whmcs)
+- API reference: [coino.live/api-guide](https://coino.live/api-guide) · Support: [support@coino.live](mailto:support@coino.live)
 
-- **No KYC:** You can sign up and start accepting payments in minutes, with just an email address and a password.
-- **Sky's the Limit:** You can access your money anytime, anywhere, and in any currency you prefer.
-- **Affordable and Fair:** We charge only a flat fee of 0.25% per transaction.
-- **Safe and Sound:** We use the latest encryption and security protocols to protect your data and funds.
-- **Seamless and Simple:** We provide a user-friendly interface. You can also customize your payment page and checkout process to suit your brand and preferences.
+> **Updating from the old version?** Earlier code in this repository used the Coino Live API v1, which has been retired: its endpoints (`/api/v1/...`) no longer answer. This version uses the current [API v2](https://coino.live/api-guide). Replace the old files with these.
 
-## Installation
+## INSTALL
 
-To install the Coino Live WHMCS Plugin, follow these steps:
+1. Upload the "modules" and "includes" folders from this zip into your WHMCS
+   folder (the one that contains configuration.php). They only add files.
 
-1. Download the latest version of the plugin from the [releases page](https://github.com/coino-live/coinolive-payment-gateway-for-whmcs/releases).
-2. Upload the plugin files to the appropriate directories in your WHMCS installation.
-3. Log in to your WHMCS admin panel.
-4. Navigate to Setup > Payments > Payment Gateways.
-5. Find "Coino Live" in the list of payment gateways and click the "Activate" button.
-6. Configure the plugin settings by entering your Coino Live API credentials.
+2. Setup > Payments > Payment Gateways > All Payment Gateways:
+   click "Coino Live (crypto)". Paste your API key (Coino Live dashboard >
+   Developers) and save. Saving checks the key with Coino Live.
 
-For detailed installation and configuration instructions, refer to our [Documentation](https://coino.live/document).
+3. Optional, to see your balance and payments inside WHMCS:
+   Setup > Addon Modules > "Coino Live" > Activate, then Configure and tick
+   the admin roles that may see it. It appears under Addons > Coino Live.
 
-## Documentation
+Nothing else to configure. The callback URL
+(/modules/gateways/callback/coinolive.php) is sent with every payment. If
+callbacks cannot reach your WHMCS, open payments are still checked on every
+WHMCS cron run and whenever the client opens the invoice.
 
-For detailed information on how to install, configure, and use the Coino Live WHMCS Plugin, please refer to our [Documentation](https://coino.live/document).
+## HOW INVOICES UPDATE
 
-## Support
+- Paid: the payment is added to the invoice (transaction ID = Coino Live
+  payment ID) and WHMCS marks the invoice paid.
+- Sent but not confirmed yet, or only part paid so far: noted in the Gateway
+  Log; the client sees how much is still missing and can send the rest.
+- The payment window closed with part of the money: that part is added to
+  the invoice (converted at the rate used for the payment) and the client
+  can pay the rest with a new payment.
+- Invoice amount changed: the client gets a new payment for the new amount.
 
-For any questions, issues, or feedback related to the Coino Live WHMCS Plugin, please reach out to our support team at [support@coino.live](mailto:support@coino.live).
+Every change comes from the payment as read back from the Coino Live API with
+your key, never from the content of a callback, so a forged callback cannot
+mark an invoice paid. The optional webhook signing secret adds a signature
+check on top.
 
-## Contributing
+Invoices can be in any currency Coino Live supports (USD, EUR, GBP, TRY,
+BRL, RUB and more); amounts are converted at the current rate.
 
-We welcome contributions from the community to improve the Coino Live WHMCS Plugin. If you have any suggestions, bug fixes, or feature requests, please open an issue or submit a pull request.
+Logs: Billing > Gateway Log.
 
+## FILES
 
-## Connect with Us
+```text
+modules/gateways/coinolive.php               payment gateway
+modules/gateways/coinolive/                  library and translations
+modules/gateways/callback/coinolive.php      callback endpoint
+modules/addons/coinolivedashboard/           Addons > Coino Live (optional)
+includes/hooks/coinolive.php                 cron safety net
 
-Stay updated with the latest news and updates from Coino Live:
+Uninstall: deactivate the gateway and the addon, then delete these files. The
+table mod_coinolive (which payment belongs to which invoice) can be dropped.
+```
 
-- Follow us on [Twitter](https://twitter.com/coino_live)
-- Follow us on [Instagran](https://www.instagram.com/coino.live)
-- Follow us on [Linkedin](https://linkedin.com/company/coino-live)
-- Subscribe to our [Blog](https://coino.live/blog)
+## License
 
-## Products
-
-- [Accept Crypto Payments](https://coino.live/crypto-gateway)
-- [Personal Crypto Gateway](https://coino.live/personal-crypto-gateway)
-- [Crypto Donation](https://coino.live/crypto-donation)
-- [Invoice Manager](https://coino.live/invoice-manager)
-- [POS Crypto Payment Terminal](https://coino.live/point-of-sale)
-- [Crypto Form Builder](https://coino.live/form-builder)
-
-## Links
-
-- [Website](https://coino.live)
-- [About Us](https://coino.live/about)
-- [Contact Us](https://coino.live/contact)
-- [FAQ](https://coino.live/faq)
-
-Thank you for choosing Coino Live for your cryptocurrency payment gateway needs!
+GPL-2.0-or-later. See https://www.gnu.org/licenses/gpl-2.0.html

@@ -1,81 +1,112 @@
 <?php
+/**
+ * Coino Live crypto payments for WHMCS.
+ *
+ * Clients pay invoices with USDT, Bitcoin, Ethereum, TRON, TON, Solana and more on the
+ * Coino Live checkout; invoices are marked paid once the payment is confirmed on chain.
+ */
 
-if (!defined("WHMCS")) {
-    die("This file cannot be accessed directly");
+use CoinoLive\Whmcs\ApiException;
+use CoinoLive\Whmcs\Client;
+use CoinoLive\Whmcs\Gateway;
+use CoinoLive\Whmcs\Lang;
+
+if (!defined('WHMCS')) {
+    die('This file cannot be accessed directly');
 }
 
+require_once __DIR__ . '/coinolive/lib/Lang.php';
+require_once __DIR__ . '/coinolive/lib/Client.php';
+require_once __DIR__ . '/coinolive/lib/Gateway.php';
 
 function coinolive_MetaData()
 {
-    return array(
-        'DisplayName' => 'CoinoLive',
-        'APIVersion' => '1.1', 
-    );
+    return [
+        'DisplayName' => 'Coino Live (crypto)',
+        'APIVersion' => '1.1',
+        'DisableLocalCreditCardInput' => true,
+        'TokenisedStorage' => false,
+    ];
 }
-
 
 function coinolive_config()
 {
-    return array(
-        'FriendlyName' => array(
+    return [
+        'FriendlyName' => [
             'Type' => 'System',
-            'Value' => 'CoinoLive',
-        ),
-        'apiKey' => array(
-            'FriendlyName' => 'API key',
+            'Value' => Lang::t('friendly_name'),
+        ],
+        'apiKey' => [
+            'FriendlyName' => Lang::t('api_key'),
+            'Type' => 'password',
+            'Size' => '60',
+            'Description' => Lang::t('api_key_desc'),
+        ],
+        'webhookSecret' => [
+            'FriendlyName' => Lang::t('webhook_secret'),
+            'Type' => 'password',
+            'Size' => '60',
+            'Description' => Lang::t('webhook_secret_desc'),
+        ],
+        'expiresIn' => [
+            'FriendlyName' => Lang::t('expires_in'),
             'Type' => 'text',
-            'Default' => '',
-            'Description' => 'Enter your API key here',
-        ),
-        'ipnSecret' => array(
-            'FriendlyName' => 'Gate ID',
+            'Size' => '6',
+            'Default' => '60',
+            'Description' => Lang::t('expires_in_desc'),
+        ],
+        'apiUrl' => [
+            'FriendlyName' => Lang::t('api_url'),
             'Type' => 'text',
-            'Default' => '',
-            'Description' => 'Enter your Gate ID here',
-        )
-    );
+            'Size' => '60',
+            'Default' => Client::DEFAULT_URL,
+            'Description' => Lang::t('api_url_desc'),
+        ],
+    ];
 }
 
+/** Saving the settings checks the key against the API, so a typo shows up at once. */
+function coinolive_config_validate(array $params)
+{
+    $url = trim((string) (isset($params['apiUrl']) ? $params['apiUrl'] : ''));
+    if ($url !== '' && !Client::isAllowedUrl($url)) {
+        throw new \WHMCS\Exception\Module\InvalidConfiguration(Lang::t('error_url_https'));
+    }
+    if (trim((string) (isset($params['apiKey']) ? $params['apiKey'] : '')) === '') {
+        return;
+    }
+    try {
+        (new Client($params['apiKey'], $url))->currencies();
+    } catch (ApiException $e) {
+        throw new \WHMCS\Exception\Module\InvalidConfiguration(sprintf(Lang::t('error_key_refused'), $e->getMessage()));
+    }
+}
 
+/** The invoice page: a button to the Coino Live checkout (WHMCS submits it by itself after checkout). */
 function coinolive_link($params)
 {
-    $origin = $_SERVER['HTTP_ORIGIN'];
-    $path = array_filter(explode('/', parse_url($_SERVER['REQUEST_URI'])['path']));
-    $logoUrl = $params['systemurl'] . 'modules/gateways/coinolive/logo.png';
-    $ipnUrl = $params['systemurl'] . 'modules/gateways/callback/coinolive.php';
-    if(empty($params['systemurl'])) {
-        if(count($path) > 1) {
-            array_pop($path);
-            $prefix = implode('/', $path);
-            $logoUrl = '/' . $prefix . '/modules/gateways/coinolive/logo.png';
-            $ipnUrl = $origin . '/' . $prefix . '/modules/gateways/callback/coinolive.php';
-        } else {
-            $logoUrl = '/modules/gateways/coinolive/logo.png';
-            $ipnUrl = $origin . '/modules/gateways/callback/coinolive.php';
-        }
+    try {
+        $payment = Gateway::paymentFor($params);
+    } catch (ApiException $e) {
+        return '<div class="alert alert-warning">' . htmlspecialchars(sprintf(Lang::t('unavailable'), $e->getMessage())) . '</div>';
+    } catch (\Throwable $e) {
+        logActivity('Coino Live: ' . $e->getMessage());
+
+        return '<div class="alert alert-warning">' . htmlspecialchars(sprintf(Lang::t('unavailable'), Lang::t('error_unexpected'))) . '</div>';
     }
 
-    $orderId = 'WHMCS-' . $params['invoiceid'];
-    $coinoliveArgs = [
-        'ipnURL' => $ipnUrl,
-        'successURL' => $params['returnurl'],
-        'cancelURL' => $params['systemurl'],
-        'dataSource' => 'whmcs',
-        'paymentCurrency' => mb_strtoupper($params['currency']),
-        'apiKey' => $params['apiKey'],
-        'customerName' => $params['clientdetails']['firstname'],
-        'customerEmail' => $params['clientdetails']['email'],
-        'paymentAmount' => $params['amount'],
-        'orderID' => $orderId,
-        'gateID'=>$params['ipnSecret']
-    ];
+    $button = '<form method="get" action="' . htmlspecialchars($payment['checkout_url']) . '">'
+        . '<button type="submit" class="btn btn-success">%s</button></form>';
 
-    $url = 'https://coino.live/api/v1/order?data=';
-    $coinolive_adr = $url . urlencode(json_encode($coinoliveArgs));
-    $htmlOutput = '<a href="' . $coinolive_adr . '" target="_blank">';
-    $htmlOutput .= '<img  src="'.$logoUrl.'" alt="CoinoLive" />';
-    $htmlOutput .= ' </a>';
-
-    return $htmlOutput;
+    switch ($payment['status']) {
+        case 'paid':
+            return '<div class="alert alert-success">' . htmlspecialchars(Lang::t('paid_text')) . '</div>';
+        case 'confirming':
+            return '<div class="alert alert-info">' . htmlspecialchars(Lang::t('confirming_text')) . '</div>';
+        case 'partially_paid':
+            return '<p>' . htmlspecialchars(sprintf(Lang::t('partial_text'), $payment['received_usd'], $payment['amount'])) . '</p>'
+                . sprintf($button, htmlspecialchars(Lang::t('open_payment_page')));
+        default:
+            return sprintf($button, htmlspecialchars(Lang::t('pay_button')));
+    }
 }
-
